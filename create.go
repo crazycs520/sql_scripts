@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql" // mysql driver
@@ -13,20 +15,23 @@ func getCli() *sql.DB {
 	dbDSN := fmt.Sprintf("root:@tcp(%s)/%s", dbAddr, "test")
 	db, err := sql.Open("mysql", dbDSN)
 	if err != nil {
-		os.Exit(0)
+		fmt.Println("can not connect to database.")
+		os.Exit(1)
 	}
 	db.SetMaxOpenConns(20)
 	return db
 }
 
 func main() {
-	transaction()
+	//	transaction()
+	//create()
+	execSqlFromFile()
 }
 
 func create() {
 	db := getCli()
 
-	numRow := 100
+	numRow := 10000
 	startNum := 0
 
 	sqls := []string{
@@ -81,13 +86,16 @@ insert into t values(1, 0);`
 	db3.Exec(sql)
 	fmt.Println("initial")
 	selectAndPrint(db3, "select b from t where a = 1")
+	fmt.Println("-------------")
 	for i := 0; i < 10; i++ {
 		db1.Exec("SET autocommit=0")
-		db2.Exec("update t set b=2 where a=1")
+		db2.Exec("begin")
 		db1.Exec("begin")
+		db2.Exec("update t set b=2 where a=1")
 		selectAndPrint(db1, "select b from t where a = 1")
 		db1.Exec("update t set b=0 where a=1")
 		db1.Exec("commit")
+		db2.Exec("commit")
 	}
 }
 
@@ -147,5 +155,29 @@ func selectAndPrint(db *sql.DB, sql string) {
 			rowString += fmt.Sprintf("%v,", col)
 		}
 		fmt.Println(rowString)
+	}
+}
+
+func execSqlFromFile() {
+	file, err := os.Open("sqls.sql")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	db := getCli()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		sql := scanner.Text()
+		_, err = db.Exec(sql)
+		if err != nil {
+			fmt.Printf("\n\nexec sql: %s, error: %#v", sql, err)
+			return
+		}
+		fmt.Println(sql)
+	}
+	fmt.Printf("\n\n finish execute all sql in file")
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
 	}
 }
