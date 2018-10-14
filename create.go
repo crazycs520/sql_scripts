@@ -18,7 +18,7 @@ func getCli() *sql.DB {
 		fmt.Println("can not connect to database.")
 		os.Exit(1)
 	}
-	db.SetMaxOpenConns(20)
+	db.SetMaxOpenConns(1)
 	return db
 }
 

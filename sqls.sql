@@ -1,6 +1,6 @@
- drop table if exists t1
- CREATE TABLE t1 (c2 YEAR, PRIMARY KEY (c2))
- INSERT INTO t1 SET c2 = '1912'
- ALTER TABLE t1 ADD COLUMN c3 TIMESTAMP NULL DEFAULT '1976-08-29 16:28:11'
- ALTER TABLE t1 ADD INDEX c5 (c2, c3)
- admin check table t1
+drop table if exists t1;
+CREATE TABLE t1 (c1 int);
+INSERT INTO t1 SET c1 = 1;
+ALTER TABLE t1 ADD COLUMN cc1 CHAR(36) NULL DEFAULT '';
+ALTER TABLE t1 ADD INDEX idx1 (cc1);
+admin check table t1;
