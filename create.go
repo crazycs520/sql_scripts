@@ -25,7 +25,8 @@ func getCli() *sql.DB {
 func main() {
 	//	transaction()
 	//create()
-	execSqlFromFile()
+	create2()
+	// execSqlFromFile()
 }
 
 func create() {
@@ -69,6 +70,43 @@ func create() {
 		}
 	}
 
+}
+
+func create2() {
+	db := getCli()
+
+	sqls := []string{
+		"drop table if exists t",
+		"create table t (a tinyint, b tinyint, primary key(a), index idx(a, b))",
+	}
+	for _, sql := range sqls {
+		_, err := db.Exec(sql)
+		if err != nil {
+			return
+		}
+	}
+
+	for i := 0; i < 20; i++ {
+		sql := fmt.Sprintf("insert into t values (%d, %d)", i, i)
+		_, err := db.Exec(sql)
+		if err != nil {
+			return
+		}
+	}
+
+	// sql := "analyze table t with 3 buckets;"
+	// _, err := db.Exec(sql)
+	// if err != nil {
+	//     return
+	// }
+	//
+	// for i := 30; i < 40; i++ {
+	//     sql := fmt.Sprintf("insert into t values (%d, %d)", i, i)
+	//     _, err := db.Exec(sql)
+	//     if err != nil {
+	//         return
+	//     }
+	// }
 }
 
 func transaction() {
