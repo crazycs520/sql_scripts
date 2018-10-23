@@ -25,8 +25,17 @@ func getCli() *sql.DB {
 func main() {
 	//	transaction()
 	//create()
-	create2()
+	// create2()
 	// execSqlFromFile()
+	db := getCli()
+	sql := "create table t1 (id int, name varchar(30),addr varchar(30), course varchar(30))"
+	_, err := db.Exec(sql)
+	if err != nil {
+		return
+	}
+	// for i := 0; i < 10000; i++ {
+	//     selectAndPrint(db, "select * from mysql.gc_delete_range;")
+	// }
 }
 
 func create() {
