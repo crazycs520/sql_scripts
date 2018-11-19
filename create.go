@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	_ "github.com/go-sql-driver/mysql" // mysql driver
 )
 
 func getCli() *sql.DB {
+	// dbAddr := "172.16.30.1:41788"
 	dbAddr := "127.0.0.1:4000"
 	dbDSN := fmt.Sprintf("root:@tcp(%s)/%s", dbAddr, "test")
 	db, err := sql.Open("mysql", dbDSN)
@@ -27,15 +29,84 @@ func main() {
 	//create()
 	// create2()
 	// execSqlFromFile()
-	db := getCli()
-	sql := "create table t1 (id int, name varchar(30),addr varchar(30), course varchar(30))"
-	_, err := db.Exec(sql)
-	if err != nil {
-		return
-	}
+
+	// multiTransaction()
+
+	createData(10)
+	// selectCount(db, "select count(*) from t1 where a=1 and b=3;")
+
+	// db := getCli()
+	// sqls := []string{
+	//     "drop table if exists t1,t2",
+	//     "drop table if exists tid1,tid2",
+	//
+	//     "create table t1 (id int, name varchar(30),addr varchar(30), course varchar(30))",
+	//     "create table t2 (id int, name varchar(30),addr varchar(30), course varchar(30))",
+	//     "create table tid1 (id int)",
+	//     "create table tid2 (id int)",
+	// }
+	//
+	// for _, sql := range sqls {
+	//     fmt.Printf("%s\n", sql)
+	//     _, err := db.Exec(sql)
+	//     if err != nil {
+	//         fmt.Printf("err: %s\n", err.Error())
+	//         return
+	//     }
+	//     fmt.Printf("\n")
+	// }
 	// for i := 0; i < 10000; i++ {
 	//     selectAndPrint(db, "select * from mysql.gc_delete_range;")
 	// }
+}
+
+func createData(num int) {
+	db := getCli()
+	sql := "drop table if exists t_cs"
+	_, err := db.Exec(sql)
+	checkErr(err)
+	sql = "create table t_cs (a int, b int, c varchar(50), d double,f decimal(30,10));"
+	_, err = db.Exec(sql)
+	checkErr(err)
+
+	for i := 0; i < num; i++ {
+		c := fmt.Sprintf("abcdefghijklm--%v", i)
+		d := 1.0 + float64(i)
+		sql = fmt.Sprintf("insert into t_cs values (%v,%v,'%v',%v,%v)", i, i+1, c, d, d+1)
+		_, err = db.Exec(sql)
+		checkErr(err)
+
+	}
+}
+
+func multiTransaction() {
+	sessionNum := 2
+	dbs := make([]*sql.DB, sessionNum)
+	for i := range dbs {
+		dbs[i] = getCli()
+	}
+
+	sqls := []struct {
+		Sql string
+		Se  int
+	}{
+		{"drop table if exists t", 0},
+		{"create table t (i int)", 0},
+		{"insert into t values (1)", 0},
+		{"begin", 0},
+		{"insert into t values (10)", 0},
+		{"update t set i = i + row_count();", 0},
+		{"update t set i = 0 where i=1;", 1},
+		{"commit", 0},
+	}
+	for _, s := range sqls {
+		_, err := dbs[s.Se].Exec(s.Sql)
+		if err != nil {
+			fmt.Printf("err: %s\n", err.Error())
+			return
+		}
+	}
+	selectAndPrint(dbs[0], "select * from t")
 }
 
 func create() {
@@ -146,6 +217,64 @@ insert into t values(1, 0);`
 	}
 }
 
+func selectCount(db *sql.DB, sql string) {
+	// execute
+	rows, err := db.Query(sql)
+
+	if err == nil {
+		defer rows.Close()
+	}
+	// When column is removed, SELECT statement may return error so that we ignore them here.
+
+	if err != nil {
+		return
+	}
+	// Read all rows.
+	var actualRows [][]interface{}
+	for rows.Next() {
+		cols, err1 := rows.Columns()
+		if err1 != nil {
+			return
+		}
+
+		// See https://stackoverflow.com/questions/14477941/read-select-columns-into-string-in-go
+		rawResult := make([][]byte, len(cols))
+		result := make([]interface{}, len(cols))
+		dest := make([]interface{}, len(cols))
+		for i := range rawResult {
+			dest[i] = &rawResult[i]
+		}
+
+		err1 = rows.Scan(dest...)
+		if err1 != nil {
+			return
+		}
+
+		for i, raw := range rawResult {
+			if raw == nil {
+				result[i] = "NULL"
+			} else {
+				val := string(raw)
+
+				result[i] = val
+			}
+		}
+
+		actualRows = append(actualRows, result)
+	}
+	if rows.Err() != nil {
+		return
+	}
+	if len(actualRows) < 1 || len(actualRows[0]) < 1 {
+		return
+	}
+	num, err := strconv.Atoi(actualRows[0][0].(string))
+	if err != nil {
+		return
+	}
+	fmt.Println(num)
+}
+
 func selectAndPrint(db *sql.DB, sql string) {
 	// execute
 	rows, err := db.Query(sql)
@@ -226,5 +355,12 @@ func execSqlFromFile() {
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func checkErr(err error) {
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }
