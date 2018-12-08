@@ -37,6 +37,7 @@ func main() {
 
 
 	prepareData(300)
+	testAddIndex(5,5)
 
 	// multiTransaction()
 	//addIndex(10, "t_wide")
@@ -61,10 +62,7 @@ func prepareData(num int){
 	wg.Wait()
 }
 
-func testAddIndex(){
-	idxStart := 0
-	testNum := 5
-
+func testAddIndex(idxStart, testNum int){
 	type testCfg struct {
 		workerCnt int
 		batchCnt int
