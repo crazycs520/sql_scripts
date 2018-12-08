@@ -37,8 +37,8 @@ func main() {
 
 
 	//prepareData(30)
-	testAddIndexByCnt(0,5)
-
+	//testAddIndexByCnt(0,5)
+	testAddIndexByBatch(300,4)
 	// multiTransaction()
 	//addIndex(10, "t_wide")
 	//	addIndexUpdate("t_wide",20,800000,10*time.Millisecond,)
@@ -94,10 +94,11 @@ func testAddIndexByBatch(idxStart, testNum int){
 	for i:=0;i<=10;i++{
 		cfg := testCfg{
 			workerCnt:i,
-			batchCnt:1024*i,
+			batchCnt:1024*i*2,
 		}
 		if cfg.workerCnt < 1 {
 			cfg.workerCnt = 1
+			cfg.batchCnt = 1024 * 2
 		}
 		cfgs = append(cfgs, cfg)
 	}
