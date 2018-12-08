@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql" // mysql driver
@@ -33,9 +34,34 @@ func main() {
 	//create()
 	// create2()
 	//execSqlFromFile()
-	testCreateTable(10,3,10, "t_wide")
-	testCreateTable(10,6,5, "t_slim")
 
+
+	prepareData(300)
+
+	// multiTransaction()
+	//addIndex(10, "t_wide")
+	//	addIndexUpdate("t_wide",20,800000,10*time.Millisecond,)
+	//createData(100)
+	//createDataSlim(10)
+	// selectCount(db, "select count(*) from t1 where a=1 and b=3;")
+}
+
+func prepareData(num int){
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		testCreateTable(num,4000,200, "t_wide")
+	}()
+
+	go func() {
+		defer wg.Done()
+		testCreateTable(num,4000,10, "t_slim")
+	}()
+	wg.Wait()
+}
+
+func testAddIndex(){
 	idxStart := 0
 	testNum := 5
 
@@ -56,13 +82,6 @@ func main() {
 		addIndex(testNum,"t_wide","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
 		addIndex(testNum,"t_slim","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
 	}
-
-	// multiTransaction()
-	//addIndex(10, "t_wide")
-	//	addIndexUpdate("t_wide",20,800000,10*time.Millisecond,)
-	//createData(100)
-	//createDataSlim(10)
-	// selectCount(db, "select count(*) from t1 where a=1 and b=3;")
 }
 
 func addIndexUpdate(t string, updateNum, rowLen int, sleep time.Duration) {
