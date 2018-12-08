@@ -38,7 +38,9 @@ func main() {
 
 	//prepareData(30)
 	//testAddIndexByCnt(0,5)
-	testAddIndexByBatch(300,4)
+	//testAddIndexByBatch(300,4)
+	cleanIndex("t_wide")
+	cleanIndex("t_slim")
 	// multiTransaction()
 	//addIndex(10, "t_wide")
 	//	addIndexUpdate("t_wide",20,800000,10*time.Millisecond,)
@@ -106,6 +108,14 @@ func testAddIndexByBatch(idxStart, testNum int){
 	for i,cfg := range cfgs {
 		addIndex(testNum,"t_wide","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
 		addIndex(testNum,"t_slim","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
+	}
+}
+
+func cleanIndex(tName string) {
+	db := getCli()
+	for i:=0;i<400;i++ {
+		sql := fmt.Sprintf("alter table %s drop index idx_cs_%v", tName, i)
+		db.Exec(sql)
 	}
 }
 
