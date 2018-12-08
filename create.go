@@ -119,7 +119,7 @@ func addIndexUpdate(t string, updateNum, rowLen int, sleep time.Duration) {
 }
 
 func addIndex(testNum int, tName, idxCol string,idxStartIndex, workerCnt, batchCnt int) {
-	fmt.Printf("------\nstart add index on table: %v, index column: %v , start idx index: %v, workerCnt: %v, batchCnt: %v, workerCnt * batchCnt: \n",tName,idxCol,idxStartIndex,workerCnt,batchCnt,workerCnt*batchCnt)
+	fmt.Printf("------\nstart add index on table: %v, index column: %v , start idx index: %v, workerCnt: %v, batchCnt: %v, workerCnt * batchCnt: %v\n",tName,idxCol,idxStartIndex,workerCnt,batchCnt,workerCnt*batchCnt)
 	startTime := time.Now()
 	defer func() {
 		fmt.Printf("add index spend %v s\n----------------->\n\n",time.Since(startTime).Seconds())
