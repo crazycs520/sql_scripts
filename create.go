@@ -35,8 +35,28 @@ func main() {
 	//execSqlFromFile()
 	testCreateTable(10,3,10, "t_wide")
 	testCreateTable(10,6,5, "t_slim")
+
 	idxStart := 0
-	addIndex(5,"t_wide","c1",idxStart,3,7)
+	testNum := 5
+
+	type testCfg struct {
+		workerCnt int
+		batchCnt int
+	}
+	cfgs := make([]testCfg,0)
+	for i:=1;i<=48;i++{
+		cfg := testCfg{
+			workerCnt:i,
+			batchCnt:128,
+		}
+		cfgs = append(cfgs, cfg)
+	}
+
+	for i,cfg := range cfgs {
+		addIndex(testNum,"t_wide","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
+		addIndex(testNum,"t_slim","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
+	}
+
 	// multiTransaction()
 	//addIndex(10, "t_wide")
 	//	addIndexUpdate("t_wide",20,800000,10*time.Millisecond,)
@@ -56,6 +76,11 @@ func addIndexUpdate(t string, updateNum, rowLen int, sleep time.Duration) {
 }
 
 func addIndex(testNum int, tName, idxCol string,idxStartIndex, workerCnt, batchCnt int) {
+	fmt.Printf("------\nstart add index on table: %v, index column: %v , start idx index: %v, workerCnt: %v, batchCnt: %v\n",tName,idxCol,idxStartIndex,workerCnt,batchCnt)
+	startTime := time.Now()
+	defer func() {
+		fmt.Printf("add index spend %v s\n----------------->\n\n",time.Since(startTime).Seconds())
+	}()
 	if testNum < 4 {
 		testNum = 4
 	}
@@ -68,8 +93,11 @@ func addIndex(testNum int, tName, idxCol string,idxStartIndex, workerCnt, batchC
 	checkErr(err)
 	_, err = db.Exec(fmt.Sprintf("set @@global.tidb_ddl_reorg_batch_size=%d;",batchCnt))
 	checkErr(err)
-
-
+	//selectAndPrint(db,"select @@tidb_ddl_reorg_worker_cnt")
+	//selectAndPrint(db,"select @@global.tidb_ddl_reorg_worker_cnt")
+	//selectAndPrint(db,"select @@tidb_ddl_reorg_batch_size")
+	//selectAndPrint(db,"select @@global.tidb_ddl_reorg_batch_size")
+	fmt.Println()
 	times := make([]float64, 0, testNum)
 	checkErr(err)
 	for i := 0; i < testNum; i++ {
@@ -114,7 +142,11 @@ func updateWhenAddindex(tName string, rowLen int, sleep time.Duration, done chan
 }
 
 func testCreateTable(num, batchCnt, colNum int, tableName string) {
-	fmt.Printf("create table %v, insert data %v, col Num\n")
+	fmt.Printf("------\nstart to create table: %v, insert data: %v, column number: %v\n",tableName, num, colNum)
+	startTime := time.Now()
+	defer func() {
+		fmt.Printf("create table spend %v s\n----------------->\n\n",time.Since(startTime).Seconds())
+	}()
 	db := getCli()
 	sql := fmt.Sprintf("drop table if exists %s", tableName)
 	_, err := db.Exec(sql)
@@ -253,43 +285,6 @@ func create() {
 
 }
 
-func create2() {
-	db := getCli()
-
-	sqls := []string{
-		"drop table if exists t",
-		"create table t (a tinyint, b tinyint, primary key(a), index idx(a, b))",
-	}
-	for _, sql := range sqls {
-		_, err := db.Exec(sql)
-		if err != nil {
-			return
-		}
-	}
-
-	for i := 0; i < 20; i++ {
-		sql := fmt.Sprintf("insert into t values (%d, %d)", i, i)
-		_, err := db.Exec(sql)
-		if err != nil {
-			return
-		}
-	}
-
-	// sql := "analyze table t with 3 buckets;"
-	// _, err := db.Exec(sql)
-	// if err != nil {
-	//     return
-	// }
-	//
-	// for i := 30; i < 40; i++ {
-	//     sql := fmt.Sprintf("insert into t values (%d, %d)", i, i)
-	//     _, err := db.Exec(sql)
-	//     if err != nil {
-	//         return
-	//     }
-	// }
-}
-
 func transaction() {
 	db1 := getCli()
 	db2 := getCli()
@@ -377,9 +372,9 @@ func selectCount(db *sql.DB, sql string) {
 }
 
 func selectAndPrint(db *sql.DB, sql string) {
+	fmt.Println(sql)
 	// execute
 	rows, err := db.Query(sql)
-
 	if err == nil {
 		defer rows.Close()
 	}
