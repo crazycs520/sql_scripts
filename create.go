@@ -179,7 +179,7 @@ func testCreateTable(num, batchCnt, colNum int, tableName string) {
 	_, err = db.Exec("begin")
 	checkErr(err)
 	for value := 0; value < num; value++ {
-		if i%batchCnt == 0 {
+		if value%batchCnt == 0 {
 			_, err = db.Exec("commit")
 			checkErr(err)
 			_, err = db.Exec("begin")
