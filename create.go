@@ -36,8 +36,8 @@ func main() {
 	//execSqlFromFile()
 
 
-	prepareData(300)
-	testAddIndex(5,5)
+	//prepareData(30)
+	testAddIndexByCnt(0,5)
 
 	// multiTransaction()
 	//addIndex(10, "t_wide")
@@ -62,16 +62,42 @@ func prepareData(num int){
 	wg.Wait()
 }
 
-func testAddIndex(idxStart, testNum int){
+func testAddIndexByCnt(idxStart, testNum int){
 	type testCfg struct {
 		workerCnt int
 		batchCnt int
 	}
 	cfgs := make([]testCfg,0)
-	for i:=1;i<=48;i++{
+	for i:=0;i<=12;i++{
+		cfg := testCfg{
+			workerCnt:i*4,
+			batchCnt:1024,
+		}
+		if cfg.workerCnt < 1 {
+			cfg.workerCnt = 1
+		}
+		cfgs = append(cfgs, cfg)
+	}
+
+	for i,cfg := range cfgs {
+		addIndex(testNum,"t_wide","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
+		addIndex(testNum,"t_slim","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
+	}
+}
+
+func testAddIndexByBatch(idxStart, testNum int){
+	type testCfg struct {
+		workerCnt int
+		batchCnt int
+	}
+	cfgs := make([]testCfg,0)
+	for i:=0;i<=10;i++{
 		cfg := testCfg{
 			workerCnt:i,
-			batchCnt:128,
+			batchCnt:1024*i,
+		}
+		if cfg.workerCnt < 1 {
+			cfg.workerCnt = 1
 		}
 		cfgs = append(cfgs, cfg)
 	}
@@ -93,7 +119,7 @@ func addIndexUpdate(t string, updateNum, rowLen int, sleep time.Duration) {
 }
 
 func addIndex(testNum int, tName, idxCol string,idxStartIndex, workerCnt, batchCnt int) {
-	fmt.Printf("------\nstart add index on table: %v, index column: %v , start idx index: %v, workerCnt: %v, batchCnt: %v\n",tName,idxCol,idxStartIndex,workerCnt,batchCnt)
+	fmt.Printf("------\nstart add index on table: %v, index column: %v , start idx index: %v, workerCnt: %v, batchCnt: %v, workerCnt * batchCnt: \n",tName,idxCol,idxStartIndex,workerCnt,batchCnt,workerCnt*batchCnt)
 	startTime := time.Now()
 	defer func() {
 		fmt.Printf("add index spend %v s\n----------------->\n\n",time.Since(startTime).Seconds())
