@@ -35,9 +35,10 @@ func main() {
 	// create2()
 	//execSqlFromFile()
 
-	prepareData(10000)
+	//prepareData(187)
+	fixTableWide(2000*10000 - 6977899,4000,200,"t_wide")
 	fmt.Printf("sleeping...\n\n")
-	time.Sleep(6 * time.Second)
+	time.Sleep(60 * time.Second)
 	//	time.Sleep(60 * time.Second)
 	testAddIndexByCnt(0, 2)
 	//	testAddIndexByBatch(0,5)
@@ -63,6 +64,74 @@ func prepareData(num int) {
 		defer wg.Done()
 		testCreateTable(num, 4000, 10, "t_slim")
 	}()
+	wg.Wait()
+}
+
+func fixTableWide(num, batchCnt, colNum int, tableName string){
+	fmt.Printf("------\nstart to fix table: %v, insert data: %v, column number: %v\n", tableName, num, colNum)
+	startTime := time.Now()
+	defer func() {
+		fmt.Printf("fix table spend %v s\n----------------->\n\n", time.Since(startTime).Seconds())
+	}()
+	intColNum := colNum / 3
+	varCharColNum := (colNum - intColNum) / 2
+	dateColNum := colNum - intColNum - varCharColNum
+
+	insertFunc := func(start, end, batchCnt int) {
+		db := getCli()
+		sql1 := ""
+		ColNum := 0
+		_, err := db.Exec("begin")
+		checkErr(err)
+		for value := start; value < end; value++ {
+			if value%batchCnt == 0 {
+				_, err = db.Exec("commit")
+				checkErr(err)
+				_, err = db.Exec("begin")
+				checkErr(err)
+			}
+
+			sql1 = fmt.Sprintf("insert into %s values (", tableName)
+			i := 0
+			for ; i < intColNum; i++ {
+				if i > 0 {
+					sql1 += ", "
+				}
+				sql1 = sql1 + fmt.Sprintf("%d", value+20000000)
+			}
+			ColNum = intColNum + varCharColNum
+			for ; i < ColNum; i++ {
+				sql1 = sql1 + fmt.Sprintf(`, "abcdefgabcdefgabcdefgabcdefgabcdefgabcdefghijklmnopqrstuvwxyz-%d"`, value+20000000)
+			}
+			ColNum = intColNum + varCharColNum + dateColNum
+			now := time.Unix(time.Now().Unix()+rand.Int63n(int64(value)+24*60*60*30), 0)
+			for ; i < ColNum; i++ {
+				sql1 = sql1 + fmt.Sprintf(`, "%s"`, now.Format("2006-01-02 15:04:05"))
+			}
+			sql1 += ")"
+			_, err = db.Exec(sql1)
+			checkErr(err)
+		}
+		_, err = db.Exec("commit")
+		checkErr(err)
+	}
+
+	parallel := 36
+	avgNum := num / parallel
+	var wg sync.WaitGroup
+	for i := 0; i < parallel; i++ {
+		start := i * avgNum
+		end := (i + 1) * avgNum
+		if i == (parallel-1) {
+			end = num
+		}
+		wg.Add(1)
+		go func(start, end int, batch int) {
+			batchSize := batchCnt/2 + rand.Intn(batchCnt/2)
+			insertFunc(start, end, batchSize)
+			wg.Done()
+		}(start, end, batchCnt)
+	}
 	wg.Wait()
 }
 
