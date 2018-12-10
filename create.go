@@ -35,10 +35,10 @@ func main() {
 	// create2()
 	//execSqlFromFile()
 
-
-	//prepareData(30)
-	//testAddIndexByCnt(0,5)
-	//testAddIndexByBatch(300,4)
+//	prepareData(200*10000)
+//	time.Sleep(60 * time.Second)	
+	testAddIndexByCnt(0, 1)
+	//	testAddIndexByBatch(0,5)
 	cleanIndex("t_wide")
 	cleanIndex("t_slim")
 	// multiTransaction()
@@ -49,71 +49,66 @@ func main() {
 	// selectCount(db, "select count(*) from t1 where a=1 and b=3;")
 }
 
-func prepareData(num int){
+func prepareData(num int) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		testCreateTable(num,4000,200, "t_wide")
+		testCreateTable(num, 4000, 200, "t_wide")
 	}()
 
 	go func() {
 		defer wg.Done()
-		testCreateTable(num,4000,10, "t_slim")
+		testCreateTable(num, 4000, 10, "t_slim")
 	}()
 	wg.Wait()
 }
 
-func testAddIndexByCnt(idxStart, testNum int){
+func testAddIndexByCnt(idxStart, testNum int) {
 	type testCfg struct {
 		workerCnt int
-		batchCnt int
+		batchCnt  int
 	}
-	cfgs := make([]testCfg,0)
-	for i:=0;i<=12;i++{
+	cfgs := make([]testCfg, 0)
+	for i := 0; i < 12; i++ {
 		cfg := testCfg{
-			workerCnt:i*4,
-			batchCnt:1024,
+			workerCnt: i*4,
+			batchCnt:  128,
 		}
-		if cfg.workerCnt < 1 {
-			cfg.workerCnt = 1
+		if i==0 {
+			cfg.workerCnt = 1	
 		}
 		cfgs = append(cfgs, cfg)
 	}
-
-	for i,cfg := range cfgs {
-		addIndex(testNum,"t_wide","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
-		addIndex(testNum,"t_slim","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
+	for i, cfg := range cfgs {
+		addIndex(testNum, "t_wide", "c1", idxStart+i*testNum, cfg.workerCnt, cfg.batchCnt)
+		addIndex(testNum, "t_slim", "c1", idxStart+i*testNum, cfg.workerCnt, cfg.batchCnt)
 	}
 }
 
-func testAddIndexByBatch(idxStart, testNum int){
+func testAddIndexByBatch(idxStart, testNum int) {
 	type testCfg struct {
 		workerCnt int
-		batchCnt int
+		batchCnt  int
 	}
-	cfgs := make([]testCfg,0)
-	for i:=0;i<=10;i++{
+	cfgs := make([]testCfg, 0)
+	for i := 1; i <= 10; i++ {
 		cfg := testCfg{
-			workerCnt:i,
-			batchCnt:1024*i*2,
-		}
-		if cfg.workerCnt < 1 {
-			cfg.workerCnt = 1
-			cfg.batchCnt = 1024 * 2
+			workerCnt: 1,
+			batchCnt:  1024 * i,
 		}
 		cfgs = append(cfgs, cfg)
 	}
 
-	for i,cfg := range cfgs {
-		addIndex(testNum,"t_wide","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
-		addIndex(testNum,"t_slim","c1", idxStart + i * testNum, cfg.workerCnt, cfg.batchCnt)
+	for i, cfg := range cfgs {
+		addIndex(testNum, "t_wide", "c1", idxStart+i*testNum, cfg.workerCnt, cfg.batchCnt)
+		addIndex(testNum, "t_slim", "c1", idxStart+i*testNum, cfg.workerCnt, cfg.batchCnt)
 	}
 }
 
 func cleanIndex(tName string) {
 	db := getCli()
-	for i:=0;i<400;i++ {
+	for i := 0; i < 400; i++ {
 		sql := fmt.Sprintf("alter table %s drop index idx_cs_%v", tName, i)
 		db.Exec(sql)
 	}
@@ -124,39 +119,31 @@ func addIndexUpdate(t string, updateNum, rowLen int, sleep time.Duration) {
 	for i := 0; i < updateNum; i++ {
 		go updateWhenAddindex(t, rowLen, sleep, done)
 	}
-	addIndex(20, t,"a",1,1,1)
+	addIndex(20, t, "a", 1, 1, 1)
 	close(done)
 	time.Sleep(100 * time.Millisecond)
 }
 
-func addIndex(testNum int, tName, idxCol string,idxStartIndex, workerCnt, batchCnt int) {
-	fmt.Printf("------\nstart add index on table: %v, index column: %v , start idx index: %v, workerCnt: %v, batchCnt: %v, workerCnt * batchCnt: %v\n",tName,idxCol,idxStartIndex,workerCnt,batchCnt,workerCnt*batchCnt)
-	startTime := time.Now()
-	defer func() {
-		fmt.Printf("add index spend %v s\n----------------->\n\n",time.Since(startTime).Seconds())
-	}()
-	if testNum < 4 {
-		testNum = 4
-	}
+func addIndex(testNum int, tName, idxCol string, idxStartIndex, workerCnt, batchCnt int) {
+	fmt.Printf("------\nstart add index on table: %v, index column: %v , start idx index: %v, workerCnt: %v, batchCnt: %v, workerCnt * batchCnt: %v\n", tName, idxCol, idxStartIndex, workerCnt, batchCnt, workerCnt*batchCnt)
 	db := getCli()
-	_, err := db.Exec(fmt.Sprintf("set @@tidb_ddl_reorg_worker_cnt=%d;",workerCnt))
-	checkErr(err)
-	_, err = db.Exec(fmt.Sprintf("set @@global.tidb_ddl_reorg_worker_cnt=%d;",workerCnt))
-	checkErr(err)
-	_, err = db.Exec(fmt.Sprintf("set @@tidb_ddl_reorg_batch_size=%d;",batchCnt))
-	checkErr(err)
-	_, err = db.Exec(fmt.Sprintf("set @@global.tidb_ddl_reorg_batch_size=%d;",batchCnt))
-	checkErr(err)
+	_, err := db.Exec(fmt.Sprintf("set @@tidb_ddl_reorg_worker_cnt=%d;", workerCnt))
+	//	checkErr(err)
+	_, err = db.Exec(fmt.Sprintf("set @@global.tidb_ddl_reorg_worker_cnt=%d;", workerCnt))
+	//	checkErr(err)
+	_, err = db.Exec(fmt.Sprintf("set @@tidb_ddl_reorg_batch_size=%d;", batchCnt))
+	//	checkErr(err)
+	_, err = db.Exec(fmt.Sprintf("set @@global.tidb_ddl_reorg_batch_size=%d;", batchCnt))
+	//	checkErr(err)
 	//selectAndPrint(db,"select @@tidb_ddl_reorg_worker_cnt")
 	//selectAndPrint(db,"select @@global.tidb_ddl_reorg_worker_cnt")
 	//selectAndPrint(db,"select @@tidb_ddl_reorg_batch_size")
 	//selectAndPrint(db,"select @@global.tidb_ddl_reorg_batch_size")
 	fmt.Println()
 	times := make([]float64, 0, testNum)
-	checkErr(err)
 	for i := 0; i < testNum; i++ {
 		start := time.Now()
-		sql := fmt.Sprintf("alter table %s add index idx_cs_%v (%s)", tName, i+idxStartIndex,idxCol)
+		sql := fmt.Sprintf("alter table %s add unique index idx_cs_%v (%s)", tName, i+idxStartIndex, idxCol)
 		_, err = db.Exec(sql)
 		checkErr(err)
 		pass := time.Since(start).Seconds()
@@ -168,8 +155,7 @@ func addIndex(testNum int, tName, idxCol string,idxStartIndex, workerCnt, batchC
 	for _, v := range times {
 		avgTime += v
 	}
-	avgTime = avgTime - times[0] - times[len(times)-1]
-	avgTime = avgTime / float64((len(times) - 2))
+	avgTime = avgTime / float64((len(times)))
 	fmt.Printf("avg: %vs\n", avgTime)
 
 	_, err = db.Exec("commit")
@@ -196,10 +182,10 @@ func updateWhenAddindex(tName string, rowLen int, sleep time.Duration, done chan
 }
 
 func testCreateTable(num, batchCnt, colNum int, tableName string) {
-	fmt.Printf("------\nstart to create table: %v, insert data: %v, column number: %v\n",tableName, num, colNum)
+	fmt.Printf("------\nstart to create table: %v, insert data: %v, column number: %v\n", tableName, num, colNum)
 	startTime := time.Now()
 	defer func() {
-		fmt.Printf("create table spend %v s\n----------------->\n\n",time.Since(startTime).Seconds())
+		fmt.Printf("create table spend %v s\n----------------->\n\n", time.Since(startTime).Seconds())
 	}()
 	db := getCli()
 	sql := fmt.Sprintf("drop table if exists %s", tableName)
@@ -207,24 +193,24 @@ func testCreateTable(num, batchCnt, colNum int, tableName string) {
 	checkErr(err)
 
 	sql = fmt.Sprintf("create table %s (", tableName)
-	intColNum := colNum/3
-	varCharColNum := (colNum-intColNum)/2
+	intColNum := colNum / 3
+	varCharColNum := (colNum - intColNum) / 2
 	dateColNum := colNum - intColNum - varCharColNum
 
-	i:=0
-	for ;i < intColNum; i++ {
+	i := 0
+	for ; i < intColNum; i++ {
 		if i > 0 {
 			sql += ", "
 		}
-		sql = sql + fmt.Sprintf("c%d int",i)
+		sql = sql + fmt.Sprintf("c%d int", i)
 	}
 	ColNum := intColNum + varCharColNum
-	for ;i < ColNum; i++ {
-		sql = sql + fmt.Sprintf(", c%d varchar(30)",i)
+	for ; i < ColNum; i++ {
+		sql = sql + fmt.Sprintf(", c%d varchar(200)", i)
 	}
 	ColNum = intColNum + varCharColNum + dateColNum
 	for ; i < ColNum; i++ {
-		sql = sql + fmt.Sprintf(", c%d timestamp",i)
+		sql = sql + fmt.Sprintf(", c%d timestamp", i)
 	}
 	sql += ")"
 	_, err = db.Exec(sql)
@@ -240,20 +226,20 @@ func testCreateTable(num, batchCnt, colNum int, tableName string) {
 			checkErr(err)
 		}
 
-		sql = fmt.Sprintf("insert into %s values (",tableName)
-		i:=0
-		for ;i < intColNum; i++ {
+		sql = fmt.Sprintf("insert into %s values (", tableName)
+		i := 0
+		for ; i < intColNum; i++ {
 			if i > 0 {
 				sql += ", "
 			}
-			sql = sql + fmt.Sprintf("%d",value)
+			sql = sql + fmt.Sprintf("%d", value)
 		}
 		ColNum = intColNum + varCharColNum
-		for ;i < ColNum; i++ {
-			sql = sql + fmt.Sprintf(`, "abcdefg-%d"`,value)
+		for ; i < ColNum; i++ {
+			sql = sql + fmt.Sprintf(`, "abcdefgabcdefgabcdefgabcdefgabcdefgabcdefghijklmnopqrstuvwxyz-%d"`, value)
 		}
 		ColNum = intColNum + varCharColNum + dateColNum
-		now := time.Unix(time.Now().Unix() + rand.Int63n(int64(value)+ 24*60*60*30 ) , 0)
+		now := time.Unix(time.Now().Unix()+rand.Int63n(int64(value)+24*60*60*30), 0)
 		for ; i < ColNum; i++ {
 			sql = sql + fmt.Sprintf(`, "%s"`, now.Format("2006-01-02 15:04:05"))
 		}
@@ -264,7 +250,6 @@ func testCreateTable(num, batchCnt, colNum int, tableName string) {
 	_, err = db.Exec("commit")
 	checkErr(err)
 }
-
 
 func multiTransaction() {
 	sessionNum := 2
