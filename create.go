@@ -36,11 +36,11 @@ func main() {
 	//execSqlFromFile()
 
 	//prepareData(187)
-	fixTableWide(2000*10000 - 6977899,4000,200,"t_wide")
-	fmt.Printf("sleeping...\n\n")
-	time.Sleep(60 * time.Second)
+	//fixTableWide(2000*10000 - 6977899,4000,200,"t_wide")
+	//fmt.Printf("sleeping...\n\n")
+	//time.Sleep(60 * time.Second)
 	//	time.Sleep(60 * time.Second)
-	testAddIndexByCnt(0, 2)
+	testAddIndexByCnt(0, 1)
 	//	testAddIndexByBatch(0,5)
 	cleanIndex("t_wide")
 	cleanIndex("t_slim")
@@ -147,7 +147,7 @@ func testAddIndexByCnt(idxStart, testNum int) {
 			batchCnt:  4096,
 		}
 		if i == 0 {
-			cfg.workerCnt = 1
+			cfg.workerCnt = 16
 			cfg.batchCnt = 4096
 		}
 		cfgs = append(cfgs, cfg)
@@ -212,10 +212,14 @@ func addIndex(testNum int, tName, idxCol string, idxStartIndex, workerCnt, batch
 	//selectAndPrint(db,"select @@tidb_ddl_reorg_batch_size")
 	//selectAndPrint(db,"select @@global.tidb_ddl_reorg_batch_size")
 	fmt.Println()
+	idxCol2 := "c9"
+	if tName == "t_wide" {
+		idxCol2 = "c199"
+	}
 	times := make([]float64, 0, testNum)
 	for i := 0; i < testNum; i++ {
 		start := time.Now()
-		sql := fmt.Sprintf("alter table %s add unique index idx_cs_%v (%s)", tName, i+idxStartIndex, idxCol)
+		sql := fmt.Sprintf("alter table %s add unique index idx_cs_%v (%s, %s)", tName, i+idxStartIndex, idxCol, idxCol2)
 		_, err = db.Exec(sql)
 		checkErr(err)
 		pass := time.Since(start).Seconds()
