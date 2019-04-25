@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -31,25 +33,51 @@ func getCli() *sql.DB {
 
 func main() {
 	//	transaction()
-	//create()
+	//	create()
 	// create2()
-	//execSqlFromFile()
-
-	//prepareData(187)
-	fixTableWide(2000*10000 - 6977899,4000,200,"t_wide")
-	fmt.Printf("sleeping...\n\n")
-	time.Sleep(60 * time.Second)
+	//	execSqlFromFile()
+	//	testInsertBigJson()
+	prepareData(10000)
+	// fixTableWide(2000*10000 - 6977899,4000,200,"t_wide")
+	// fmt.Printf("sleeping...\n\n")
+	// time.Sleep(60 * time.Second)
 	//	time.Sleep(60 * time.Second)
-	testAddIndexByCnt(0, 2)
+	// testAddIndexByCnt(0, 2)
 	//	testAddIndexByBatch(0,5)
-	cleanIndex("t_wide")
-	cleanIndex("t_slim")
+	// cleanIndex("t_wide")
+	// cleanIndex("t_slim")
 	// multiTransaction()
 	//addIndex(10, "t_wide")
 	//	addIndexUpdate("t_wide",20,800000,10*time.Millisecond,)
 	//createData(100)
 	//createDataSlim(10)
 	// selectCount(db, "select count(*) from t1 where a=1 and b=3;")
+}
+
+func testInsertBigJson() {
+	db := getCli()
+	m := make(map[string]interface{})
+	m["a"] = 1
+	for i := 0; i < 50000; i++ {
+		str := randSeq(20)
+		m[str] = str
+	}
+	var buf bytes.Buffer
+	e := json.NewEncoder(&buf)
+	e.Encode(m)
+	//fmt.Printf("%v\n",string(buf.Bytes()))
+	sql := fmt.Sprintf("insert into t1 set a='%s'", string(buf.Bytes()))
+	fmt.Println(db.Exec(sql))
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func randSeq(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }
 
 func prepareData(num int) {
@@ -67,7 +95,7 @@ func prepareData(num int) {
 	wg.Wait()
 }
 
-func fixTableWide(num, batchCnt, colNum int, tableName string){
+func fixTableWide(num, batchCnt, colNum int, tableName string) {
 	fmt.Printf("------\nstart to fix table: %v, insert data: %v, column number: %v\n", tableName, num, colNum)
 	startTime := time.Now()
 	defer func() {
@@ -122,7 +150,7 @@ func fixTableWide(num, batchCnt, colNum int, tableName string){
 	for i := 0; i < parallel; i++ {
 		start := i * avgNum
 		end := (i + 1) * avgNum
-		if i == (parallel-1) {
+		if i == (parallel - 1) {
 			end = num
 		}
 		wg.Add(1)
@@ -256,14 +284,13 @@ func updateWhenAddindex(tName string, rowLen int, sleep time.Duration, done chan
 func testCreateTable(num, batchCnt, colNum int, tableName string) {
 	fmt.Printf("------\nstart to create table: %v, insert data: %v, column number: %v\n", tableName, num, colNum)
 	startTime := time.Now()
-	defer func() {
-		fmt.Printf("create table spend %v s\n----------------->\n\n", time.Since(startTime).Seconds())
-	}()
 	db := getCli()
 	sql := fmt.Sprintf("drop table if exists %s", tableName)
 	_, err := db.Exec(sql)
 	checkErr(err)
 
+	_, err = db.Exec("set @@tidb_wait_table_split_finish=1")
+	checkErr(err)
 	sql = fmt.Sprintf("create table %s (", tableName)
 	intColNum := colNum / 3
 	varCharColNum := (colNum - intColNum) / 2
@@ -285,8 +312,17 @@ func testCreateTable(num, batchCnt, colNum int, tableName string) {
 		sql = sql + fmt.Sprintf(", c%d timestamp", i)
 	}
 	sql += ")"
+	sql += " SHARD_ROW_ID_BITS = 3, PRE_SPLIT_REGIONS = 3;"
+
 	_, err = db.Exec(sql)
 	checkErr(err)
+
+	fmt.Printf("create table spend %v s\n----------------->\n\n", time.Since(startTime).Seconds())
+
+	startTime = time.Now()
+	defer func() {
+		fmt.Printf("insert %v spend %v s\n----------------->\n\n", num, time.Since(startTime).Seconds())
+	}()
 
 	insertFunc := func(start, end, batchCnt int) {
 		db := getCli()
@@ -376,44 +412,44 @@ func multiTransaction() {
 func create() {
 	db := getCli()
 
-	numRow := 10000
-	startNum := 0
-
 	sqls := []string{
-		"drop table if exists t1,t2",
+		//"drop table if exists t1,t2",
 		"drop table if exists tid1,tid2",
 
-		"create table t1 (id int, name varchar(30),addr varchar(30), course varchar(30))",
-		"create table t2 (id int, name varchar(30),addr varchar(30), course varchar(30))",
-		"create table tid1 (id int)",
-		"create table tid2 (id int)",
+		//"create table t1 (id int, name varchar(30),addr varchar(30), course varchar(30))",
+		//"create table t2 (id int, name varchar(30),addr varchar(30), course varchar(30))",
+		"create table tid1 (id int) charset=utf8",
+		//"create table tid2 (id int)",
 	}
 
 	for _, sql := range sqls {
 		_, err := db.Exec(sql)
 		if err != nil {
+			fmt.Println(err.Error())
 			return
 		}
 	}
-
-	// insert
-	for i := startNum; i < numRow; i++ {
-		sql := fmt.Sprintf("insert into t1 values (%d, \"name_abcd_%d\", \"address_abcd_%d\" , \"course_abcd_%d\"); insert into t2 values (%d, \"name_abcd_%d\", \"address_abcd_%d\" , \"course_abcd_%d\");", i, i, i, i, i, i, i, i)
-		_, err := db.Exec(sql)
-		if err != nil {
-			return
+	/*
+		numRow := 10000
+		startNum := 0
+		// insert
+		for i := startNum; i < numRow; i++ {
+			sql := fmt.Sprintf("insert into t1 values (%d, \"name_abcd_%d\", \"address_abcd_%d\" , \"course_abcd_%d\"); insert into t2 values (%d, \"name_abcd_%d\", \"address_abcd_%d\" , \"course_abcd_%d\");", i, i, i, i, i, i, i, i)
+			_, err := db.Exec(sql)
+			if err != nil {
+				return
+			}
 		}
-	}
 
-	// insert
-	for i := startNum; i < numRow; i++ {
-		sql := fmt.Sprintf("insert into tid1 set id=%d;insert into tid2 set id=%d", i, i+numRow-1)
-		_, err := db.Exec(sql)
-		if err != nil {
-			return
+		// insert
+		for i := startNum; i < numRow; i++ {
+			sql := fmt.Sprintf("insert into tid1 set id=%d;insert into tid2 set id=%d", i, i+numRow-1)
+			_, err := db.Exec(sql)
+			if err != nil {
+				return
+			}
 		}
-	}
-
+	*/
 }
 
 func transaction() {
@@ -574,7 +610,7 @@ func execSqlFromFile() {
 		_, err = db.Exec(sql)
 		if err != nil {
 			fmt.Printf("\n\nexec sql: %s, error: %#v", sql, err)
-			return
+			//		return
 		}
 		fmt.Println(sql)
 	}
